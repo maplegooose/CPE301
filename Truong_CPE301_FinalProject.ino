@@ -17,11 +17,11 @@ void setup() {
   bit 5: GREEN LED
   bit 4: BLUE LED
   */
-  DDRD = DDRD & 0b11111100;
-  PORTD = DDRD & 0B11111100;
+  DDRD = DDRD & 0b11110011;
+  PORTD = DDRD & 0B11110011;
   /* designates as inputs
-  bit 5: stop button
-  bit 4: start button
+  bit 2: stop button
+  bit 3: start button
   */
   DDRE = DDRE | 0b00010000; 
   PORTE = PORTE | 0b00010000;
@@ -37,8 +37,9 @@ void setup() {
 
   //setup for interrupts
   SREG = 0b10000000; //globally enables interrupts
-  EICRA = 0b00001010; //triggers flag on falling edge for INT1:0
-  EIMSK = 0b00000011; //enables interrupts for INT1:0
+
+  attachInterrupt(digitalPinToInterrupt(19), P19_STOP, FALLING);
+  attachInterrupt(digitalPinToInterrupt(18), P18_START, FALLING);
 
   PORTB = 0b01000000; //starting in idle
 
@@ -90,13 +91,21 @@ void loop() {
   lcd.clear();
 }
 
-//switches to disabled state
-ISR(INT0_vect){
+// //switches to disabled state
+// ISR(INT0_vect){
+//   PORTB = 0b01000000;
+// }
+
+// //switches to idle state
+// ISR(INT1_vect){
+//   PORTB = 0b00100000;
+// }
+
+void P19_STOP(){
   PORTB = 0b01000000;
 }
 
-//switches to idle state
-ISR(INT1_vect){
+void P18_START(){
   PORTB = 0b00100000;
 }
 
