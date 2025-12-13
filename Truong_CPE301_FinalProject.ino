@@ -72,9 +72,13 @@ void loop() {
       vent.Move(15);
       Serial.println("right");
     }
+
+    analogWrite(9, 120); //generates low  base voltage for transistor to turn on fan motor
+
   }
   else{
-    lcd.print("disabled");
+    lcd.print("disabled"); //turns off transistor for fan motor
+    analogWrite(9, 0); //turns off base voltage for transistor to turn off fan motor
   }
   delay(100);
   lcd.clear();
