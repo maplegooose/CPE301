@@ -1,11 +1,11 @@
 #include "DHT.h" 
-//#include "Tinystepper.h"
+#include "TinyStepper.h"
 #include "LiquidCrystal.h"
 
 //creating objects
 LiquidCrystal lcd(50, 51, 31, 30, 29, 28);
 DHT dht(2, DHT11);
-//TinyStepper vent(4096, 25, 24, 23, 22);
+TinyStepper vent(4096, 25, 24, 23, 22);
 
 void setup() {
   DDRB = 0b11110000;
@@ -26,6 +26,12 @@ void setup() {
   /* designates as input
   bit 4: DHT sensor
   */
+  DDRH = DDRH & 0b11100111;
+  PORTH = PORTH & 0b11100111;
+  /* inputs
+  bit 4: left button for vent
+  bit 3: right button for vent
+  */
 
   //setup for interrupts
   SREG = 0b10000000; //globally enables interrupts
@@ -35,7 +41,7 @@ void setup() {
   PORTB = 0b01000000; //starting in idle
 
   dht.begin();
-  //vent.Enable();
+  vent.Enable();
   lcd.begin(16, 2);
   Serial.begin(9600);
 }
@@ -47,6 +53,7 @@ void loop() {
     float temp = dht.readTemperature();
     float humidity = dht.readHumidity();
     
+    //printing stuff for LCD
     lcd.print("temp: ");
     lcd.print(temp);
     lcd.print(" C");
@@ -54,12 +61,22 @@ void loop() {
     lcd.print("humidity: ");
     lcd.print(humidity);
     lcd.print("%");
+
+    int moveState1 = PINH;
+    int moveState2 = PINH;
+
+    if((moveState1 & 0b00010000) && 0b00010000){
+      vent.Move(-15);
+      Serial.println("left");
+    }else if((moveState2 & 0b00001000) && 0b00001000){
+      vent.Move(15);
+      Serial.println("right");
+    }
   }
   else{
-    Serial.println("idle");
-    lcd.print("idle");
+    lcd.print("disabled");
   }
-  delay(2000);
+  delay(100);
   lcd.clear();
 }
 
