@@ -1,7 +1,11 @@
 #include "DHT.h" 
+//#include "Tinystepper.h"
+#include "LiquidCrystal.h"
 
 //creating objects
+LiquidCrystal lcd(50, 51, 31, 30, 29, 28);
 DHT dht(2, DHT11);
+//TinyStepper vent(4096, 25, 24, 23, 22);
 
 void setup() {
   DDRB = 0b11110000;
@@ -31,6 +35,8 @@ void setup() {
   PORTB = 0b01000000; //starting in idle
 
   dht.begin();
+  //vent.Enable();
+  lcd.begin(16, 2);
   Serial.begin(9600);
 }
 
@@ -39,12 +45,22 @@ void loop() {
 
   if(state != 0b01000000){
     float temp = dht.readTemperature();
-    Serial.println(temp);
+    float humidity = dht.readHumidity();
+    
+    lcd.print("temp: ");
+    lcd.print(temp);
+    lcd.print(" C");
+    lcd.setCursor(0, 1);
+    lcd.print("humidity: ");
+    lcd.print(humidity);
+    lcd.print("%");
   }
   else{
     Serial.println("idle");
+    lcd.print("idle");
   }
   delay(2000);
+  lcd.clear();
 }
 
 //switches to disabled state
