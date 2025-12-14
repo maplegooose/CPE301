@@ -13,6 +13,8 @@ LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
+const float tempThreshold = 72.00;
+const int waterThreshold = 20;
 
 void setup() {
   DDRB = 0b11110000;
@@ -41,16 +43,32 @@ void setup() {
 
 void loop() {
   int state = PORTB & 0b11110000;
-  while(state == 0b00100000){
-    Serial.println("State: idle");
+  //while loop is now "active" state
+  //outside of while loop, it is in disabled state
+  while(state != 0b01000000){
 
     //grabing data from DHT
     float temp = dht.readTemperature(true);
     float humidity = dht.readHumidity();
     float water = adc_read(0);
 
-    Serial.print("water level: ");
-    Serial.println(water);
+    if (water < waterThreshold){ //if met, activates error state
+      PORTB = PORTB & 0b00001111;
+      PORTB = PORTB | 0b10000000;
+      state = PORTB & 0b11110000;
+    } else if (temp > tempThreshold){ //if met, activates running state
+      PORTB = PORTB & 0b00001111;
+      PORTB = PORTB | 0b00010000;
+      state = PORTB & 0b11110000;
+    }
+
+    if(state == 0b10000000){ //error state code
+      Serial.println("State: error");
+    }
+
+    if(state == 0b00010000){ //running state code
+      Serial.println("State: running");
+    }
 
     //only updates lcd every minute
     unsigned long currentMillis = millis();
@@ -72,7 +90,8 @@ void loop() {
     //pressing stop button returns state to disabled
     int stopState = PING;
     if(PING == 0){
-      PORTB = PORTB << 1;
+      PORTB = PORTB & 0b00001111;
+      PORTB = PORTB | 0b01000000;
       state = PORTB & 0b11110000;
     }
     delay(100);
