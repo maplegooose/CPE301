@@ -1,3 +1,4 @@
+
 //libraries
 #include "DHT.h" 
 #include "LiquidCrystal.h"
@@ -34,8 +35,8 @@ void setup() {
 }
 
 void loop() {
-  int state = PORTB;
-  while((state & 0b11110000) == 0b00100000){
+  int state = PORTB & 0b11110000;
+  while(state == 0b00100000){
     Serial.println("State: idle");
 
     //only updates lcd every minute
@@ -64,6 +65,7 @@ void loop() {
     int stopState = PING;
     if(PING == 0){
       PORTB = PORTB << 1;
+      state = PORTB & 0b11110000;
     }
     delay(100);
   }
