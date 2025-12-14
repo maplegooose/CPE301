@@ -1,13 +1,24 @@
-#include "DHT.h" 
-#include "TinyStepper.h"
-#include "LiquidCrystal.h"
 
+//libraries
+#include "DHT.h" 
+#include "LiquidCrystal.h"
+#include "TinyStepper.h"
+
+
+//defining address since ADC register takes up two bytes
 volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
 
 //creating objects
-LiquidCrystal lcd(50, 51, 31, 30, 29, 28);
-DHT dht(2, DHT11);
-TinyStepper vent(4096, 25, 24, 23, 22);
+DHT dht(22, DHT11);
+LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
+TinyStepper vent(4096, 38, 39, 40, 41);
+
+//declaring vars
+unsigned long prevMillis = 0;
+const long interval = 60000;
+const float tempThreshold = 50;
+const int waterThreshold = -1;
+int state = PORTB & 0b11110000;
 
 void setup() {
   DDRB = 0b11110000;
@@ -17,96 +28,118 @@ void setup() {
   bit 5: GREEN LED
   bit 4: BLUE LED
   */
-  DDRD = DDRD & 0b11110011;
-  PORTD = DDRD & 0B11110011;
-  /* designates as inputs
-  bit 2: stop button
-  bit 3: start button
-  */
-  DDRE = DDRE | 0b00010000; 
-  PORTE = PORTE | 0b00010000;
-  /* designates as input
-  bit 4: DHT sensor
-  */
-  DDRH = DDRH & 0b11100111;
-  PORTH = PORTH & 0b11100111;
-  /* inputs
-  bit 4: left button for vent
-  bit 3: right button for vent
-  */
+  PORTB = 0b01000000; //starting in idle
+
+  DDRE & 0b11011111; //calls pin 3 an input (reset button)
+  PORTE & 0b11011111;
+
+  DDRG & 0b11011111; //calls pin 4 an input (stop button)
+  PORTG & 0b11011111;
+
+  DDRL & 0b11101011; //pin 2: left button, pin 4: right button
+  PORTL & 0b11101011;
 
   //setup for interrupts
   SREG = 0b10000000; //globally enables interrupts
+  attachInterrupt(digitalPinToInterrupt(2), START, FALLING); //setting up START ISR
 
-  attachInterrupt(digitalPinToInterrupt(19), P19_STOP, FALLING);
-  attachInterrupt(digitalPinToInterrupt(18), P18_START, FALLING);
+  adc_init(); //initializing analog input
 
-  PORTB = 0b01000000; //starting in idle
-
-  adc_init();
-
-  dht.begin();
-  vent.Enable();
-  lcd.begin(16, 2);
-  Serial.begin(9600); //REMOVE
+  dht.begin(); //starting the dht sensor
+  lcd.begin(16, 2); //starting LCD
+  Serial.begin(9600);
 }
 
 void loop() {
-  int state = PORTB;
+  int state = PORTB & 0b11110000;
+  //while loop is now "active" state
+  //outside of while loop, it is in disabled state
+  while(state != 0b01000000){
+    state = PORTB & 0b11110000;
 
-  if(state != 0b01000000){
-    //printing data from dht onto LCD
-    float temp = dht.readTemperature();
+    //grabing data from DHT
+    float temp = dht.readTemperature(true);
     float humidity = dht.readHumidity();
+    float water = adc_read(0);
+
+    Serial.println(temp);
+
+    if (water < waterThreshold){ //if met, activates error state
+      PORTB = PORTB & 0b00001111;
+      PORTB = PORTB | 0b10000000;
+      state = PORTB & 0b11110000;
+      lcd.clear();
+    } 
     
-    lcd.print("temp: ");
-    lcd.print(temp);
-    lcd.print(" C");
-    lcd.setCursor(0, 1);
-    lcd.print("humidity: ");
-    lcd.print(humidity);
-    lcd.print("%");
+    while(state == 0b10000000){ //error state code (can't break out unless conditions met)
 
-    //checks for button to move the vent
-    int moveState1 = PINH;
-    int moveState2 = PINH;
+      lcd.setCursor(0, 0);
+      lcd.write("ERROR: LOW WATER");
 
-    if((moveState1 & 0b00010000) && 0b00010000){
-      vent.Move(-15);
-    }else if((moveState2 & 0b00001000) && 0b00001000){
-      vent.Move(15);
+      analogWrite(9, 0);
+
+      int resetState = !(PINE & 0b00100000);
+      float water = adc_read(0);
+
+      //checks if conditions for reset to idle has been met
+      if((water > waterThreshold) && (resetState)){
+        PORTB = PORTB & 0b00001111;
+        PORTB = PORTB | 0b01000000;
+        state = PORTB & 0b11110000;
+      }
+
+      checkTurn();
+
+      state = checkStop(state);
+      state = PORTB & 0b11110000;
+
+    }
+    
+    if ((temp > tempThreshold) && (water > waterThreshold)){ //if met, activates running state
+      PORTB = PORTB & 0b00001111;
+      PORTB = PORTB | 0b00010000;
+      state = PORTB & 0b11110000;
     }
 
-    analogWrite(9, 120); //generates low  base voltage for transistor to turn on fan motor
+    if(state == 0b00010000){ //running state code
+      analogWrite(9, 120);
+    } else{
+      analogWrite(9, 0);
+    }
 
-    int waterLevel = adc_read(0);
-    Serial.println(waterLevel);
+    checkTurn();
 
+    //only updates lcd every minute
+    unsigned long currentMillis = millis();
+
+    if ((currentMillis - prevMillis) >= interval){
+
+      prevMillis = currentMillis;
+
+      lcd.setCursor(0,0);
+      lcd.print("Temp: ");
+      lcd.print(temp);
+      lcd.print(" F");
+      lcd.setCursor(0, 1);
+      lcd.print("Humidity: ");
+      lcd.print(humidity);
+      lcd.print("%");
+    }
+
+    //pressing stop button returns state to disabled
+    state = checkStop(state);
+    delay(100);
   }
-  else{
-    lcd.print("disabled"); //turns off transistor for fan motor
-    analogWrite(9, 0); //turns off base voltage for transistor to turn off fan motor
-  }
+  //outside of while loop, disabled state
   delay(100);
-  lcd.clear();
 }
 
-// //switches to disabled state
-// ISR(INT0_vect){
-//   PORTB = 0b01000000;
-// }
-
-// //switches to idle state
-// ISR(INT1_vect){
-//   PORTB = 0b00100000;
-// }
-
-void P19_STOP(){
-  PORTB = 0b01000000;
-}
-
-void P18_START(){
-  PORTB = 0b00100000;
+//ISR switches to idle state
+void START() {
+  if((PORTB & 0b11110000) != 0b10000000){ //ensures that start ISR cannot be used in error state
+    PORTB = PORTB & 0b00001111;
+    PORTB = PORTB | 0b00100000;
+  }
 }
 
 void adc_init() //initializes ADC for water sensor
@@ -143,4 +176,24 @@ unsigned int adc_read(unsigned char adc_channel_num) //work with channel 0
   while((ADCSRA & (1 <<6)) != 0);
   
   return *my_ADC_DATA;
+}
+
+int checkStop(int state) {
+  int stopState = PING;
+  if(PING == 0){
+    PORTB = PORTB & 0b00001111;
+    PORTB = PORTB | 0b01000000;
+    return state = PORTB & 0b11110000;
+  }
+}
+
+void checkTurn() {
+    int leftState = PINL & 0b00000100;
+    int rightState = PINL & 0b00010000;
+    if (leftState == 0){
+      vent.Move(-15);
+    }
+    if (rightState == 0){
+      vent.Move(15);
+    }
 }
