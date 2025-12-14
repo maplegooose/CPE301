@@ -13,7 +13,7 @@ LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 70.00;
+const float tempThreshold = 69.00;
 const int waterThreshold = -1;
 int state = PORTB & 0b11110000;
 
@@ -62,13 +62,15 @@ void loop() {
       PORTB = PORTB & 0b00001111;
       PORTB = PORTB | 0b10000000;
       state = PORTB & 0b11110000;
+      lcd.clear();
     } 
     
     while(state == 0b10000000){ //error state code (can't break out unless conditions met)
 
-      lcd.clear();
       lcd.setCursor(0, 0);
       lcd.write("ERROR: LOW WATER");
+
+      analogWrite(9, 0);
 
       int resetState = !(PINE & 0b00100000);
       float water = adc_read(0);
@@ -93,7 +95,9 @@ void loop() {
     }
 
     if(state == 0b00010000){ //running state code
-      Serial.println("State: running");
+      analogWrite(9, 120);
+    } else{
+      analogWrite(9, 0);
     }
 
     //only updates lcd every minute
@@ -117,7 +121,6 @@ void loop() {
     state = checkStop(state);
     delay(100);
   }
-  lcd.clear();
   //outside of while loop, disabled state
   delay(100);
 }
