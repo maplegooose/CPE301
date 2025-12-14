@@ -6,6 +6,10 @@
 DHT dht(9, DHT11);
 LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
 
+//declaring vars
+unsigned long prevMillis = 0;
+const long interval = 60000;
+
 void setup() {
   DDRB = 0b11110000;
   /* designates as outputs
@@ -34,17 +38,27 @@ void loop() {
   while((state & 0b11110000) == 0b00100000){
     Serial.println("State: idle");
 
-    float temp = dht.readTemperature();
-    float humidity = dht.readHumidity();
+    //only updates lcd every minute
+    unsigned long currentMillis = millis();
+    Serial.print("ms: ");
+    Serial.println(currentMillis);
 
-    lcd.setCursor(0,0);
-    lcd.print("Temp: ");
-    lcd.print(temp);
-    lcd.print(" C");
-    lcd.setCursor(0, 1);
-    lcd.print("Humidity: ");
-    lcd.print(humidity);
-    lcd.print("%");
+    if ((currentMillis - prevMillis) >= interval){
+
+      prevMillis = currentMillis;
+      float temp = dht.readTemperature();
+      float humidity = dht.readHumidity();
+
+      lcd.setCursor(0,0);
+      lcd.print("Temp: ");
+      lcd.print(temp);
+      lcd.print(0xB0);
+      lcd.print(" C");
+      lcd.setCursor(0, 1);
+      lcd.print("Humidity: ");
+      lcd.print(humidity);
+      lcd.print("%");
+    }
 
     //pressing stop button returns state to disabled
     int stopState = PING;
