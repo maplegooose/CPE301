@@ -1,8 +1,10 @@
 //libraries
 #include "DHT.h" 
+#include "LiquidCrystal.h"
 
 //creating objects
 DHT dht(9, DHT11);
+LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
 
 void setup() {
   DDRB = 0b11110000;
@@ -22,6 +24,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(2), START, FALLING); //setting up START ISR
 
   dht.begin(); //starting the dht sensor
+  lcd.begin(16, 2); //starting LCD
+  lcd.print("Hellow, world");
   Serial.begin(9600);
 }
 
