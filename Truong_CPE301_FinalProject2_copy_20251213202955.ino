@@ -30,25 +30,33 @@ void setup() {
 }
 
 void loop() {
-  while(PORTB == 0b00100000){
-    //Serial.println("State: idle");
+  int state = PORTB;
+  while((state & 0b11110000) == 0b00100000){
+    Serial.println("State: idle");
 
     float temp = dht.readTemperature();
     float humidity = dht.readHumidity();
 
-    Serial.print("temp: ");
-    Serial.println(temp);
-    Serial.print("humidity ");
-    Serial.println(humidity);
+    lcd.setCursor(0,0);
+    lcd.print("Temp: ");
+    lcd.print(temp);
+    lcd.print(" C");
+    lcd.setCursor(0, 1);
+    lcd.print("Humidity: ");
+    lcd.print(humidity);
+    lcd.print("%");
 
     //pressing stop button returns state to disabled
     int stopState = PING;
     if(PING == 0){
       PORTB = PORTB << 1;
     }
+    delay(100);
   }
   Serial.println("State: disabled");
+  lcd.clear();
   //outside of while loop, disabled state
+  delay(100);
 }
 
 //switches to start state
