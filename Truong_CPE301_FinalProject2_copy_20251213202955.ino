@@ -26,6 +26,9 @@ void setup() {
   */
   PORTB = 0b01000000; //starting in idle
 
+  DDRE & 0b11011111; //calls pin 3 an input (reset button)
+  PORTE & 0b11011111;
+
   DDRG & 0b11011111; //calls pin 4 an input (stop button)
   PORTG & 0b11011111;
 
@@ -62,8 +65,24 @@ void loop() {
       state = PORTB & 0b11110000;
     }
 
-    if(state == 0b10000000){ //error state code
-      Serial.println("State: error");
+    while(state == 0b10000000){ //error state code (can't break out unless conditions met)
+
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.write("ERROR: LOW WATER");
+
+      int resetState = !(PINE & 0b00100000);
+      float water = adc_read(0);
+
+      //checks if conditions for reset to idle has been met
+      if((water > waterThreshold) && (resetState)){
+        PORTB = PORTB & 0b00001111;
+        PORTB = PORTB | 0b01000000;
+        state = PORTB & 0b11110000;
+      }
+
+      state = checkStop(state);
+
     }
 
     if(state == 0b00010000){ //running state code
@@ -88,12 +107,7 @@ void loop() {
     }
 
     //pressing stop button returns state to disabled
-    int stopState = PING;
-    if(PING == 0){
-      PORTB = PORTB & 0b00001111;
-      PORTB = PORTB | 0b01000000;
-      state = PORTB & 0b11110000;
-    }
+    state = checkStop(state);
     delay(100);
   }
   Serial.println("State: disabled");
@@ -102,9 +116,12 @@ void loop() {
   delay(100);
 }
 
-//switches to start state
+//ISR switches to idle state
 void START() {
-  PORTB = 0b00100000;
+  if((PORTB & 0b11110000) != 0b10000000){ //ensures that start ISR cannot be used in error state
+    PORTB = PORTB & 0b00001111;
+    PORTB = PORTB | 0b00100000;
+  }
 }
 
 void adc_init() //initializes ADC for water sensor
@@ -143,3 +160,11 @@ unsigned int adc_read(unsigned char adc_channel_num) //work with channel 0
   return *my_ADC_DATA;
 }
 
+int checkStop(int state) {
+  int stopState = PING;
+  if(PING == 0){
+    PORTB = PORTB & 0b00001111;
+    PORTB = PORTB | 0b01000000;
+    return state = PORTB & 0b11110000;
+  }
+}
