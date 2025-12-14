@@ -2,6 +2,8 @@
 //libraries
 #include "DHT.h" 
 #include "LiquidCrystal.h"
+#include "TinyStepper.h"
+
 
 //defining address since ADC register takes up two bytes
 volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
@@ -9,11 +11,12 @@ volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
 //creating objects
 DHT dht(22, DHT11);
 LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
+TinyStepper vent(4096, 38, 39, 40, 41);
 
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 69.00;
+const float tempThreshold = 50;
 const int waterThreshold = -1;
 int state = PORTB & 0b11110000;
 
@@ -32,6 +35,9 @@ void setup() {
 
   DDRG & 0b11011111; //calls pin 4 an input (stop button)
   PORTG & 0b11011111;
+
+  DDRL & 0b11101011; //pin 2: left button, pin 4: right button
+  PORTL & 0b11101011;
 
   //setup for interrupts
   SREG = 0b10000000; //globally enables interrupts
@@ -80,8 +86,9 @@ void loop() {
         PORTB = PORTB & 0b00001111;
         PORTB = PORTB | 0b01000000;
         state = PORTB & 0b11110000;
-        Serial.print("debug 1");
       }
+
+      checkTurn();
 
       state = checkStop(state);
       state = PORTB & 0b11110000;
@@ -99,6 +106,8 @@ void loop() {
     } else{
       analogWrite(9, 0);
     }
+
+    checkTurn();
 
     //only updates lcd every minute
     unsigned long currentMillis = millis();
@@ -176,4 +185,15 @@ int checkStop(int state) {
     PORTB = PORTB | 0b01000000;
     return state = PORTB & 0b11110000;
   }
+}
+
+void checkTurn() {
+    int leftState = PINL & 0b00000100;
+    int rightState = PINL & 0b00010000;
+    if (leftState == 0){
+      vent.Move(-15);
+    }
+    if (rightState == 0){
+      vent.Move(15);
+    }
 }
