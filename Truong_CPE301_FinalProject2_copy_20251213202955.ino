@@ -7,14 +7,15 @@
 volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
 
 //creating objects
-DHT dht(9, DHT11);
+DHT dht(22, DHT11);
 LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
 
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 72.00;
-const int waterThreshold = 20;
+const float tempThreshold = 70.00;
+const int waterThreshold = -1;
+int state = PORTB & 0b11110000;
 
 void setup() {
   DDRB = 0b11110000;
@@ -40,7 +41,6 @@ void setup() {
 
   dht.begin(); //starting the dht sensor
   lcd.begin(16, 2); //starting LCD
-  lcd.print("Hellow, world");
   Serial.begin(9600);
 }
 
@@ -49,22 +49,21 @@ void loop() {
   //while loop is now "active" state
   //outside of while loop, it is in disabled state
   while(state != 0b01000000){
+    state = PORTB & 0b11110000;
 
     //grabing data from DHT
     float temp = dht.readTemperature(true);
     float humidity = dht.readHumidity();
     float water = adc_read(0);
 
+    Serial.println(temp);
+
     if (water < waterThreshold){ //if met, activates error state
       PORTB = PORTB & 0b00001111;
       PORTB = PORTB | 0b10000000;
       state = PORTB & 0b11110000;
-    } else if (temp > tempThreshold){ //if met, activates running state
-      PORTB = PORTB & 0b00001111;
-      PORTB = PORTB | 0b00010000;
-      state = PORTB & 0b11110000;
-    }
-
+    } 
+    
     while(state == 0b10000000){ //error state code (can't break out unless conditions met)
 
       lcd.clear();
@@ -79,10 +78,18 @@ void loop() {
         PORTB = PORTB & 0b00001111;
         PORTB = PORTB | 0b01000000;
         state = PORTB & 0b11110000;
+        Serial.print("debug 1");
       }
 
       state = checkStop(state);
+      state = PORTB & 0b11110000;
 
+    }
+    
+    if ((temp > tempThreshold) && (water > waterThreshold)){ //if met, activates running state
+      PORTB = PORTB & 0b00001111;
+      PORTB = PORTB | 0b00010000;
+      state = PORTB & 0b11110000;
     }
 
     if(state == 0b00010000){ //running state code
@@ -110,7 +117,6 @@ void loop() {
     state = checkStop(state);
     delay(100);
   }
-  Serial.println("State: disabled");
   lcd.clear();
   //outside of while loop, disabled state
   delay(100);
