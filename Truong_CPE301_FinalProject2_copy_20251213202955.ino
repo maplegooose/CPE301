@@ -3,6 +3,9 @@
 #include "DHT.h" 
 #include "LiquidCrystal.h"
 
+//defining address since ADC register takes up two bytes
+volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
+
 //creating objects
 DHT dht(9, DHT11);
 LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
@@ -28,6 +31,8 @@ void setup() {
   SREG = 0b10000000; //globally enables interrupts
   attachInterrupt(digitalPinToInterrupt(2), START, FALLING); //setting up START ISR
 
+  adc_init(); //initializing analog input
+
   dht.begin(); //starting the dht sensor
   lcd.begin(16, 2); //starting LCD
   lcd.print("Hellow, world");
@@ -39,22 +44,25 @@ void loop() {
   while(state == 0b00100000){
     Serial.println("State: idle");
 
+    //grabing data from DHT
+    float temp = dht.readTemperature(true);
+    float humidity = dht.readHumidity();
+    float water = adc_read(0);
+
+    Serial.print("water level: ");
+    Serial.println(water);
+
     //only updates lcd every minute
     unsigned long currentMillis = millis();
-    Serial.print("ms: ");
-    Serial.println(currentMillis);
 
     if ((currentMillis - prevMillis) >= interval){
 
       prevMillis = currentMillis;
-      float temp = dht.readTemperature();
-      float humidity = dht.readHumidity();
 
       lcd.setCursor(0,0);
       lcd.print("Temp: ");
       lcd.print(temp);
-      lcd.print(0xB0);
-      lcd.print(" C");
+      lcd.print(" F");
       lcd.setCursor(0, 1);
       lcd.print("Humidity: ");
       lcd.print(humidity);
@@ -79,3 +87,40 @@ void loop() {
 void START() {
   PORTB = 0b00100000;
 }
+
+void adc_init() //initializes ADC for water sensor
+{
+  ADCSRA |= (1 << 7);  
+  ADCSRA &= ~(1 << 5); 
+  ADCSRA &= ~(1 << 3); 
+  ADCSRA |= (1 << 2);  
+  ADCSRA |= (1 << 1);
+  ADCSRA |= (1 << 0);
+
+  ADCSRB &= ~(1 << 3); 
+  ADCSRB &= 0xF8;
+
+  ADMUX &= ~(1 << 7);  
+  ADMUX |= (1 << 6);   
+  ADMUX &= ~(1 << 5);  
+  ADMUX &= 0xE0;
+}
+
+unsigned int adc_read(unsigned char adc_channel_num) //work with channel 0
+{
+  ADMUX &= 0xE0;
+  ADCSRB &= ~(1 << 3);
+
+  if(adc_channel_num > 7){
+    adc_channel_num = adc_channel_num -8;
+      ADCSRB |= (1 << 3);
+  }
+
+  ADMUX |= adc_channel_num;
+  ADCSRA |= (1 << 6);
+
+  while((ADCSRA & (1 <<6)) != 0);
+  
+  return *my_ADC_DATA;
+}
+
