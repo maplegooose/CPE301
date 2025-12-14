@@ -3,7 +3,7 @@
 #include "DHT.h" 
 #include "LiquidCrystal.h"
 #include "TinyStepper.h"
-
+#include "RTClib.h"
 
 //defining address since ADC register takes up two bytes
 volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
@@ -12,6 +12,7 @@ volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
 DHT dht(22, DHT11);
 LiquidCrystal lcd(50, 51, 5, 6, 7, 8);
 TinyStepper vent(4096, 38, 39, 40, 41);
+RTC_DS1307 rtc;
 
 //declaring vars
 unsigned long prevMillis = 0;
@@ -47,6 +48,9 @@ void setup() {
 
   dht.begin(); //starting the dht sensor
   lcd.begin(16, 2); //starting LCD
+  rtc.begin();
+
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //readjusts the timeframe to when sketch was compiled
   Serial.begin(9600);
 }
 
@@ -61,8 +65,6 @@ void loop() {
     float temp = dht.readTemperature(true);
     float humidity = dht.readHumidity();
     float water = adc_read(0);
-
-    Serial.println(temp);
 
     if (water < waterThreshold){ //if met, activates error state
       PORTB = PORTB & 0b00001111;
@@ -108,6 +110,21 @@ void loop() {
     }
 
     checkTurn();
+
+    DateTime now = rtc.now();
+
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(" (");
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println(")");
 
     //only updates lcd every minute
     unsigned long currentMillis = millis();
