@@ -28,7 +28,7 @@ RTC_DS1307 rtc;
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 73;
+const float tempThreshold = 74;
 const int waterThreshold = 20;
 bool firstStartState = true;
 const float t_clock = (6.25e-8);
@@ -64,7 +64,6 @@ void setup() {
   rtc.begin();
 
   rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); //readjusts the timeframe to when sketch was compiled
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -122,21 +121,6 @@ void loop() {
     }
 
     checkTurn();
-
-    // DateTime now = rtc.now();
-
-    // Serial.print(now.year(), DEC);
-    // Serial.print('/');
-    // Serial.print(now.month(), DEC);
-    // Serial.print('/');
-    // Serial.print(now.day(), DEC);
-    // Serial.print(" (");
-    // Serial.print(now.hour(), DEC);
-    // Serial.print(':');
-    // Serial.print(now.minute(), DEC);
-    // Serial.print(':');
-    // Serial.print(now.second(), DEC);
-    // Serial.println(")");
 
     //only updates lcd every minute
     unsigned long currentMillis = millis();
