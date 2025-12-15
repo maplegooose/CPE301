@@ -30,6 +30,7 @@ unsigned long prevMillis = 0;
 const long interval = 60000;
 const float tempThreshold = 70;
 const int waterThreshold = 20;
+bool firstStartState = false;
 
 void setup() {
   DDRB = 0b11110000;
@@ -70,6 +71,10 @@ void loop() {
   //while loop is now "active" state
   //outside of while loop, it is in disabled state
   while(GET_STATE() != 0b01000000){
+    if (!(firstStartState == false)){
+      print("State changed to idle at ");
+      printTimeStamp();
+    }
 
     //grabing data from DHT
     float temp = dht.readTemperature(true);
@@ -160,7 +165,7 @@ void loop() {
 //ISR switches to idle state
 void START() {
   if((PORTB & 0b11110000) != 0b10000000){ //ensures that start ISR cannot be used in error state
-    setState(STATE_IDLE);
+    PORTB = (PORTB & 0b11110000) | 0b00100000;
   }
 }
 
@@ -257,9 +262,11 @@ void print(char msg []){
 void printTwoDigits(int num){
   if (num < 10){
     U0putchar('0');
+    U0putchar('0' + num);
+  } else if (num >= 10){
+    U0putchar('0' + (num / 10));
+    U0putchar('0' + (num % 10));
   }
-  U0putchar('0' + (num / 10));
-  U0putchar('0' + (num % 10));
 }
 
 void printFourDigits(int num){
@@ -302,23 +309,19 @@ void setState(int newState) {
 
     if (newState == STATE_RUNNING) {
       print("State changed to running at ");
-      // printTimeStamp();
-      // print("\n");
+      printTimeStamp();
     }
     else if (newState == STATE_IDLE) {
-      print("State changed to idle ");
-      // printTimeStamp();
-      // print("\n");
+      print("State changed to idle at ");
+      printTimeStamp();
     }
     else if (newState == STATE_DISABLED) {
-      print("State changed to disabled ");
-      // printTimeStamp();
-      // print("\n");
+      print("State changed to disabled at ");
+      printTimeStamp();
     }
     else if (newState == STATE_ERROR) {
-      print("State changed to error ");
-      // printTimeStamp();
-      // print("\n");
+      print("State changed to error at ");
+      printTimeStamp();
     }
   }
 }
