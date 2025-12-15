@@ -28,9 +28,9 @@ RTC_DS1307 rtc;
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 70;
+const float tempThreshold = 72;
 const int waterThreshold = 20;
-bool firstStartState = false;
+bool firstStartState = true;
 
 void setup() {
   DDRB = 0b11110000;
@@ -71,9 +71,10 @@ void loop() {
   //while loop is now "active" state
   //outside of while loop, it is in disabled state
   while(GET_STATE() != 0b01000000){
-    if (!(firstStartState == false)){
+    if ((firstStartState == true)){
       print("State changed to idle at ");
       printTimeStamp();
+      firstStartState = false;
     }
 
     //grabing data from DHT
@@ -100,6 +101,7 @@ void loop() {
       //checks if conditions for reset to idle has been met
       if((water > waterThreshold) && (resetState)){
         setState(STATE_IDLE);
+        lcd.clear();
       }
 
       checkTurn();
@@ -165,7 +167,7 @@ void loop() {
 //ISR switches to idle state
 void START() {
   if((PORTB & 0b11110000) != 0b10000000){ //ensures that start ISR cannot be used in error state
-    PORTB = (PORTB & 0b11110000) | 0b00100000;
+    PORTB = (PORTB & 0b00001111) | 0b00100000;
   }
 }
 
@@ -217,9 +219,13 @@ void checkTurn() {
     int rightState = PINL & 0b00010000;
     if (leftState == 0){
       vent.Move(-15);
+      print("Vent is moving left at ");
+      printTimeStamp();
     }
     if (rightState == 0){
       vent.Move(15);
+      print("Vent is moving right at ");
+      printTimeStamp();
     }
 }
 
@@ -314,14 +320,17 @@ void setState(int newState) {
     else if (newState == STATE_IDLE) {
       print("State changed to idle at ");
       printTimeStamp();
+      firstStartState = true;
     }
     else if (newState == STATE_DISABLED) {
       print("State changed to disabled at ");
       printTimeStamp();
+      firstStartState = true;
     }
     else if (newState == STATE_ERROR) {
       print("State changed to error at ");
       printTimeStamp();
+      firstStartState = true;
     }
   }
 }
