@@ -254,24 +254,71 @@ void print(char msg []){
   }
 }
 
+void printTwoDigits(int num){
+  if (num < 10){
+    U0putchar('0');
+  }
+  U0putchar('0' + (num / 10));
+  U0putchar('0' + (num % 10));
+}
+
+void printFourDigits(int num){
+  U0putchar('0' + (num / 1000));
+  U0putchar('0' + ((num / 100) % 10));
+  U0putchar('0' + ((num / 10) % 10));
+  U0putchar('0' + (num % 10));
+}
+
+//printing timestamp using rtc module
+void printTimeStamp(){
+  DateTime time = rtc.now();
+  int month = time.month();
+  int year = time.year();
+  int day = time.day();
+  int hour = time.hour();
+  int minute = time.minute();
+  int second = time.second();
+
+  printTwoDigits(month);
+  print("/");
+  printTwoDigits(day);
+  print("/");
+  printFourDigits(year);
+  print(" ");
+  printTwoDigits(hour);
+  print(":");
+  printTwoDigits(minute);
+  print(":");
+  printTwoDigits(second);
+  print("\n");
+}
+
 //clean function to set states and print
 void setState(int newState) {
-  int currentState = PORTB & 0b11110000;
+  int currentState = GET_STATE();
 
   if (currentState != newState) {
     PORTB = (PORTB & 0b00001111) | newState;
 
     if (newState == STATE_RUNNING) {
-      print("State changed to running\n");
+      print("State changed to running at ");
+      // printTimeStamp();
+      // print("\n");
     }
     else if (newState == STATE_IDLE) {
-      print("State changed to idle\n");
+      print("State changed to idle ");
+      // printTimeStamp();
+      // print("\n");
     }
     else if (newState == STATE_DISABLED) {
-      print("State changed to disabled\n");
+      print("State changed to disabled ");
+      // printTimeStamp();
+      // print("\n");
     }
     else if (newState == STATE_ERROR) {
-      print("State changed to error\n");
+      print("State changed to error ");
+      // printTimeStamp();
+      // print("\n");
     }
   }
 }
