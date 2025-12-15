@@ -28,9 +28,10 @@ RTC_DS1307 rtc;
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 72;
+const float tempThreshold = 73;
 const int waterThreshold = 20;
 bool firstStartState = true;
+const float t_clock = (6.25e-8);
 
 void setup() {
   DDRB = 0b11110000;
@@ -157,11 +158,11 @@ void loop() {
 
     //pressing stop button returns state to disabled
     checkStop();
-    delay(100);
+    setTimerDelay(100);
   }
   analogWrite(9, 0);
   //outside of while loop, disabled state
-  delay(100);
+  setTimerDelay(100);
 }
 
 //ISR switches to idle state
@@ -333,4 +334,19 @@ void setState(int newState) {
       firstStartState = true;
     }
   }
+}
+
+void setTimerDelay(int ms){
+
+  unsigned int ticks = (ms/1000)/t_clock;
+
+  TCCR1B &= 0x00;
+  TCNT1 = 65536 - ticks;
+
+  TCCR1A = 0x00;
+  TCCR1B |= 0b00000010;
+  while((TIFR1 & 0x01)==0);
+  TCCR1B &= 0x00;
+  TIFR1 |= 0b00000001;
+
 }
