@@ -1,3 +1,5 @@
+//Group 38
+//Tyler Truong
 
 //libraries
 #include "DHT.h" 
