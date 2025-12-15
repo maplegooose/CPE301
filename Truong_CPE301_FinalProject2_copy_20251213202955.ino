@@ -7,6 +7,17 @@
 
 //defining address since ADC register takes up two bytes
 volatile unsigned int* my_ADC_DATA = (unsigned int*) 0x78;
+#define RDA 0x80;
+#define TBE 0x20  
+
+//defining states
+#define STATE_DISABLED 0b01000000
+#define STATE_IDLE     0b00100000
+#define STATE_RUNNING  0b00010000
+#define STATE_ERROR    0b10000000
+
+//defining a way to get the state
+#define GET_STATE() (PORTB & 0b11110000)
 
 //creating objects
 DHT dht(22, DHT11);
@@ -17,9 +28,8 @@ RTC_DS1307 rtc;
 //declaring vars
 unsigned long prevMillis = 0;
 const long interval = 60000;
-const float tempThreshold = 50;
-const int waterThreshold = -1;
-int state = PORTB & 0b11110000;
+const float tempThreshold = 70;
+const int waterThreshold = 20;
 
 void setup() {
   DDRB = 0b11110000;
@@ -45,6 +55,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(2), START, FALLING); //setting up START ISR
 
   adc_init(); //initializing analog input
+  U0init(9600); //initailizing serial port
 
   dht.begin(); //starting the dht sensor
   lcd.begin(16, 2); //starting LCD
@@ -58,8 +69,7 @@ void loop() {
   int state = PORTB & 0b11110000;
   //while loop is now "active" state
   //outside of while loop, it is in disabled state
-  while(state != 0b01000000){
-    state = PORTB & 0b11110000;
+  while(GET_STATE() != 0b01000000){
 
     //grabing data from DHT
     float temp = dht.readTemperature(true);
@@ -67,14 +77,13 @@ void loop() {
     float water = adc_read(0);
 
     if (water < waterThreshold){ //if met, activates error state
-      PORTB = PORTB & 0b00001111;
-      PORTB = PORTB | 0b10000000;
-      state = PORTB & 0b11110000;
+      setState(STATE_ERROR);
       lcd.clear();
     } 
     
-    while(state == 0b10000000){ //error state code (can't break out unless conditions met)
+    while(GET_STATE() == STATE_ERROR){ //error state code (can't break out unless conditions met)
 
+      lcd.clear();
       lcd.setCursor(0, 0);
       lcd.write("ERROR: LOW WATER");
 
@@ -85,25 +94,20 @@ void loop() {
 
       //checks if conditions for reset to idle has been met
       if((water > waterThreshold) && (resetState)){
-        PORTB = PORTB & 0b00001111;
-        PORTB = PORTB | 0b01000000;
-        state = PORTB & 0b11110000;
+        setState(STATE_IDLE);
       }
 
       checkTurn();
 
-      state = checkStop(state);
-      state = PORTB & 0b11110000;
+      checkStop();
 
     }
     
     if ((temp > tempThreshold) && (water > waterThreshold)){ //if met, activates running state
-      PORTB = PORTB & 0b00001111;
-      PORTB = PORTB | 0b00010000;
-      state = PORTB & 0b11110000;
+      setState(STATE_RUNNING);
     }
 
-    if(state == 0b00010000){ //running state code
+    if(GET_STATE() == STATE_RUNNING){ //running state code
       analogWrite(9, 120);
     } else{
       analogWrite(9, 0);
@@ -111,20 +115,20 @@ void loop() {
 
     checkTurn();
 
-    DateTime now = rtc.now();
+    // DateTime now = rtc.now();
 
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(" (");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println(")");
+    // Serial.print(now.year(), DEC);
+    // Serial.print('/');
+    // Serial.print(now.month(), DEC);
+    // Serial.print('/');
+    // Serial.print(now.day(), DEC);
+    // Serial.print(" (");
+    // Serial.print(now.hour(), DEC);
+    // Serial.print(':');
+    // Serial.print(now.minute(), DEC);
+    // Serial.print(':');
+    // Serial.print(now.second(), DEC);
+    // Serial.println(")");
 
     //only updates lcd every minute
     unsigned long currentMillis = millis();
@@ -133,6 +137,7 @@ void loop() {
 
       prevMillis = currentMillis;
 
+      lcd.clear();
       lcd.setCursor(0,0);
       lcd.print("Temp: ");
       lcd.print(temp);
@@ -144,9 +149,10 @@ void loop() {
     }
 
     //pressing stop button returns state to disabled
-    state = checkStop(state);
+    checkStop();
     delay(100);
   }
+  analogWrite(9, 0);
   //outside of while loop, disabled state
   delay(100);
 }
@@ -154,8 +160,7 @@ void loop() {
 //ISR switches to idle state
 void START() {
   if((PORTB & 0b11110000) != 0b10000000){ //ensures that start ISR cannot be used in error state
-    PORTB = PORTB & 0b00001111;
-    PORTB = PORTB | 0b00100000;
+    setState(STATE_IDLE);
   }
 }
 
@@ -195,12 +200,10 @@ unsigned int adc_read(unsigned char adc_channel_num) //work with channel 0
   return *my_ADC_DATA;
 }
 
-int checkStop(int state) {
+void checkStop() {
   int stopState = PING;
-  if(PING == 0){
-    PORTB = PORTB & 0b00001111;
-    PORTB = PORTB | 0b01000000;
-    return state = PORTB & 0b11110000;
+  if(stopState == 0){
+    setState(STATE_DISABLED);
   }
 }
 
@@ -213,4 +216,62 @@ void checkTurn() {
     if (rightState == 0){
       vent.Move(15);
     }
+}
+
+void U0init(unsigned long U0baud){
+  unsigned long FCPU = 16000000;
+  unsigned int tbaud;
+  tbaud = (FCPU / 16 / U0baud - 1);
+  // Same as (FCPU / (16 * U0baud)) - 1;
+  UCSR0A = 0x20;
+  UCSR0B = 0x18;
+  UCSR0C = 0x06;
+  UBRR0  = tbaud;
+}
+
+unsigned char U0kbhit()
+{
+  return UCSR0A & RDA;
+}
+
+unsigned char U0getchar()
+{
+  return UDR0;
+}
+
+void U0putchar(unsigned char U0pdata)
+{
+  while((UCSR0A & TBE)==0);
+  UDR0 = U0pdata;
+}
+
+//making my own function for printing to serial monitor
+void print(char msg []){
+  int i = 0;
+  while(msg[i] != '\0'){
+    U0putchar(msg[i]);
+    i++;
+  }
+}
+
+//clean function to set states and print
+void setState(int newState) {
+  int currentState = PORTB & 0b11110000;
+
+  if (currentState != newState) {
+    PORTB = (PORTB & 0b00001111) | newState;
+
+    if (newState == STATE_RUNNING) {
+      print("State changed to running\n");
+    }
+    else if (newState == STATE_IDLE) {
+      print("State changed to idle\n");
+    }
+    else if (newState == STATE_DISABLED) {
+      print("State changed to disabled\n");
+    }
+    else if (newState == STATE_ERROR) {
+      print("State changed to error\n");
+    }
+  }
 }
